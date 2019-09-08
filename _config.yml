@@ -1,0 +1,35 @@
+title: KUICS
+description:
+author:
+  name: "KUICS"
+  email: "kuicsofficial@gmail.com"
+  url: "https://kuics.korea.ac.kr"
+
+baseurl: /blog
+
+source: .
+destination: ./_site
+permalink: /:title
+paginate: 3
+paginate_path: /page/:num/
+
+permalink: /:title
+
+
+defaults:
+  -
+    scope:
+      path: ""
+      type: "posts"
+    values:
+      layout: "post"
+
+future: true
+plugins:
+  - jekyll-seo-tag
+  - jekyll-paginate
+  - jekyll-sitemap
+
+# Custom variables
+owner : "KUICS"
+year : "2019"
