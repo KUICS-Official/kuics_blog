@@ -43,6 +43,10 @@ li {
   line-height: 1.4 ;
 }
 
+p {
+  margin: 0 0 1em 0;
+}
+
 /* Header, <header>
    header   - container
    h1       - project name
@@ -93,7 +97,8 @@ header h2 {
   -webkit-font-smoothing: antialiased;
 }
 section img {
-  max-width: 100%
+  max-width: 100%;
+  padding: 0.6em 0;
 }
 
 h1, h2, h3, h4, h5, h6 {
