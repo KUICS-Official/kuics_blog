@@ -5,7 +5,7 @@ published: true
 
 ## Chapter 0: Introduction - Why, in the Point of Exploitation
 공룡이 뛰어다니고 레드햇과 데비안이 막 태동하던 초창기의 리눅스는 해커들의 온상이었다. Buffer Overflow라는 취약점이 발견된 이후로, 해커들에게 있어 가장 공략하기 쉬운 먹잇감은 Stack이었다. 단순히 Stack Frame의 RET 주소를 쉘코드의 주소로 덮어씌우는 것만으로도 해커들은 손쉽게 공격 대상에 대한 권한을 장악할 수 있었다.
-![전형적인 Stack Overflow. 쉘코드를 적당히 넣어두고 그 주소로 뛰기만 하면 된다.](/blog/assets/2019-09-26-#1-Memory-Protection-Techniques/Stack_Overflow.png)
+![전형적인 Stack Overflow. 쉘코드를 적당히 넣어두고 그 주소로 뛰기만 하면 된다.](/blog/assets/2019-09-26-1-Memory-Protection-Techniques/Stack_Overflow.png)
 
 물론 이대로만 당하고 있을 OS 개발자들이 아니었다. 그들은 해커들이 자신들의 시스템에 함부로 접근할 수 없게 하는 보호 기법을 도입하기 시작했다.
 
@@ -18,10 +18,10 @@ Linux의 Process는 Memory에 Mapping되어있는, 일종의 파일로써 취급
 적당한 Binary 하나를 잡아 ```/path/to/binary &``` 명령어를 이용해 백그라운드로 실행시키고, ```ps -ef | grep binary``` 명령어를 이용해 해당 binary의 pid를 알아오자.
 
 그리고 ```cat /proc/pid/maps``` 커맨드를 실행시켜보자.
-![실행 결과. Stack이 Mapping된 시작 주소는 0xfff0c000 이다.](/blog/assets/2019-09-26-#1-Memory-Protection-Techniques/ASLR#1.png)
+![실행 결과. Stack이 Mapping된 시작 주소는 0xfff0c000 이다.](/blog/assets/2019-09-26-1-Memory-Protection-Techniques/ASLR-1.png)
 
 이제 ```kill -9 pid``` 명령어로 process를 kill하고, 위 과정을 다시 반복해보자.
-![실행 결과. Stack이 Mapping된 시작 주소는 0xffab1000 이다. 이전의 실행 결과와 다른 곳에 Stack이 Mapping되어있는 것을 볼 수 있다.](/blog/assets/2019-09-26-#1-Memory-Protection-Techniques/ASLR#2.png)
+![실행 결과. Stack이 Mapping된 시작 주소는 0xffab1000 이다. 이전의 실행 결과와 다른 곳에 Stack이 Mapping되어있는 것을 볼 수있다.](/blog/assets/2019-09-26-1-Memory-Protection-Techniques/ASLR-2.png)
 
 Stack이 Mapping된 주소가 binary를 실행할 때마다 달라지는 것을 볼 수 있다.
 
@@ -46,7 +46,7 @@ Trivia - 왜 매핑된 메모리에서 하위 12비트는 0으로 설정되는 �
 이번에는 ```cat /proc/pid/maps```가 아닌, 조금 우아한 방법을 사용해보자. 바로 [pwndbg](https://github.com/pwndbg/pwndbg)의 기능을 이용하는 것이다. pwndbg를 설치한 후, gdb로 binary를 부착, ```b *main``` 커맨드로 main function의 prologue에 bp를 걸고, 바이너리를 실행해보자.
 
 그리고 ```vmmap``` 커맨드를 입력하자.
-![실행 결과. Stack의 rwx 권한 중 eXecute 권한이 없는 것을 볼 수 있다. NX bit가 설정된 것이다.](/blog/assets/2019-09-26-#1-Memory-Protection-Techniques/ASLR#2.png)
+![실행 결과. Stack의 rwx 권한 중 eXecute 권한이 없는 것을 볼 수 있다. NX bit가 설정된 것이다.](/blog/assets/2019-09-26-1-Memory-Protection-Techniques/ASLR-2.png)
 
 stack에서 실행 권한이 없는 것 뿐만 아니라, 다른 모든 영역에서도 write 권한과 execute 권한이 동시에 존재하지 않는다는 것을 볼 수 있다.
 
@@ -60,7 +60,7 @@ Retur Oriented Programming, 줄여서 ROP는 아주 강력한 기법으로, 실�
 BOF의 가장 기초가 되는 부분은 무엇일까? 그렇다. RET 주소를 덮어 써서 Control Flow를 해커가 원하는 곳으로 돌리는 것이다. 그렇다면 만약, RET 주소를 덮어쓰지 못하도록 할 수 있는 방법이 있다면, BOF가 일어나는 것을 감지할 수 있다면 어떨까? 이 발상에서 Canary라는 기법이 도입되었다. 해커의 목표가 되는 주소는 ```push ebp``` 명령어에 의해 생긴 SFP(Saved Frame Pointer)를 지나, ```call func``` 명령어에 의해 저장된 RET 주소이다. Canary의 발상은 RET과 SFP 이전에 특정 값을 저장하여, 함수의 epilogue에서 이 값이 변경되었을 경우 BOF 시도로 인지하는 것이다. 이 모습이 옛날 광부가 유독 가스가 나오는 곳을 피하기 위해 캐너리아, 즉 Canary를 들고 가던 풍습과 비슷하다는 의미에서 Canary라는 이름이 붙여졌고, SSP(Stack Smashing Protection) 이라고 불리기도 한다.
 
 ### 3.1. Checking Canary
-![binary decompile 결과.](/blog/assets/2019-09-26-#1-Memory-Protection-Techniques/Canary#1.png)
+![binary decompile 결과.](/blog/assets/2019-09-26-1-Memory-Protection-Techniques/Canary-1.png)
 
 function prologue와 epilogue를 보면 stack 지역변수 중 가장 큰 주소를 가지는 변수에 __readgsdword() 함수를 호출하고, xor 연산을 통해 그 값을 검증하는 부분이 있는 것을 볼 수 있다. 이 변수가 Canary로, 값을 바꿀 수 없는 프로세스의 특정 섹션에서 값을 읽어들여 저장/검증하는 것이다.
 
@@ -89,7 +89,7 @@ RELRO가 대부분의 부분에 적용된 것으로, binary 기동 시 필요한
 
 ### 4.2. Checking RELRO
 이제 훨씬 간결한 방법을 써보자. checksec.sh를 사용하는 것이다. checksec.sh는 github에서 clone시켜 사용할 수도 있지만, pwntools를 설치하면 딸려오는 듯 하다. ```checksec binary```로 보호 기법을 확인할 수 있다.
-![실행 결과. binary에 걸려있는 보안 기법들을 확인할 수 있다.](/blog/assets/2019-09-26-#1-Memory-Protection-Techniques/RELRO#1.png)
+![실행 결과. binary에 걸려있는 보안 기법들을 확인할 수 있다.](/blog/assets/2019-09-26-1-Memory-Protection-Techniques/RELRO-1.png)
 
 checksec을 통해 binary 공략을 위한 방향성을 잡는 것이 좋고, RELRO가 적용되어있더라도 vmmap 등을 통해 해커가 사용할 수 있는 메모리 영역을 잘 관찰하는 것이 좋다.
 
