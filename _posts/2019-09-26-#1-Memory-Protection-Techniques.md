@@ -56,10 +56,50 @@ NX bit를 우회할 수 있는 방법은 무엇일까? 바로 코드를 실행�
 #### 2.2.1. Dawn of ROP (Return Oriented Programming)
 Retur Oriented Programming, 줄여서 ROP는 아주 강력한 기법으로, 실제 코드의 .text 섹션과 shared library의 .text 섹션이 실행 가능하다는 것을 역이용하는 기법이다. 이 기법은 함수가 실행될 때/끝날 때 stack을 참조하는 방식을 고려하여 일종의 chain을 만들고, 그에 맞는 code를 shared library의 leak과 코드의 .text 섹션에서 찾아 (통칭 gadget이라고 한다) 원하는 동작을 이끌어내는 방식으로 이루어진다. 더 자세한 내용은 일단은 생략하도록 한다.
 
-## 3: RELRO - PLT/GOT issues
+## 3: Canary - Preventing RET Overwrite
+BOF의 가장 기초가 되는 부분은 무엇일까? 그렇다. RET 주소를 덮어 써서 Control Flow를 해커가 원하는 곳으로 돌리는 것이다. 그렇다면 만약, RET 주소를 덮어쓰지 못하도록 할 수 있는 방법이 있다면, BOF가 일어나는 것을 감지할 수 있다면 어떨까? 이 발상에서 Canary라는 기법이 도입되었다. 해커의 목표가 되는 주소는 ```push ebp``` 명령어에 의해 생긴 SFP(Saved Frame Pointer)를 지나, ```call func``` 명령어에 의해 저장된 RET 주소이다. Canary의 발상은 RET과 SFP 이전에 특정 값을 저장하여, 함수의 epilogue에서 이 값이 변경되었을 경우 BOF 시도로 인지하는 것이다. 이 모습이 옛날 광부가 유독 가스가 나오는 곳을 피하기 위해 캐너리아, 즉 Canary를 들고 가던 풍습과 비슷하다는 의미에서 Canary라는 이름이 붙여졌고, SSP(Stack Smashing Protection) 이라고 불리기도 한다.
+
+### 3.1. Checking Canary
+![binary decompile 결과.](/blog/assets/2019-09-26-#1-Memory-Protection-Techniques/Canary#1.png)
+
+function prologue와 epilogue를 보면 stack 지역변수 중 가장 큰 주소를 가지는 변수에 __readgsdword() 함수를 호출하고, xor 연산을 통해 그 값을 검증하는 부분이 있는 것을 볼 수 있다. 이 변수가 Canary로, 값을 바꿀 수 없는 프로세스의 특정 섹션에서 값을 읽어들여 저장/검증하는 것이다.
+
+### 3.2. Bypassing Canary
+그렇다면 Canary를 우회할 수 있는 방법은 무엇일까?
+
+#### 3.2.1. Canary Leak
+Leak은 위대하다. Canary 값을 Leak해올 수 있다면 그 값을 Canary에 해당하는 부분에 적어넣는 payload를 구성하면 된다.
+
+#### 3.2.2. Move Focus (Rather than Stack)
+Stack 영역이 아닌 다른 부분을 공략하는 것이다. Stack에서는 답이 안보이고, Heap 등을 공격할 수 있는 전형적인 패턴이 보인다면 그 쪽을 노려보도록 하자.
+
+## 4: RELRO - PLT/GOT issues
 점점 BOF가 하기 힘든 환경이 만들어지고, Linux 환경에 대한 해커들의 이해도가 높아짐에 따라서 arbitrary memory write가 가능한 환경을 이용하는 무수한 기법들이 개발되었다. 이들 중 대표적인 것이 GOT overwrite이다. PLT/GOT에 대한 설명 또한 방대한 축에 속하므로 일단은 생략하도록 한다.
 
+### 4.1. Types of RELRO
 
+#### 4.1.1. No RELRO
+RELRO가 적용되지 않아 .dynamic 섹션의 거의 모든 부분에 값을 덮어쓸 수 있다.
+
+#### 4.1.2 Partial RELRO
+RELRO가 일부 부분에만 적용되어 .dynamic 섹션의 일부 부분에 값을 덮어쓸 수 없다. 가장 특이할 점은 프로그램의 시작과 종료 시에 Trigger 되는 init_array, fini_array에 값을 저장할 수 없게된다는 점(Case by Case일 때가 있으니 vmmap을 이용해 권한을 잘 확인해보자)이다.
+
+#### 4.1.3. Full RELRO
+RELRO가 대부분의 부분에 적용된 것으로, binary 기동 시 필요한 주소를 모두 GOT에 적어 넣고 write를 하지 못하도록 하는 것이다. 다시 말해서 GOT Overwrite가 불가능하다. 하지만 Lazy Binding이 일어나지 않는다는 특징 때문에 필연적으로 프로그램 기동 시 실행 시간면에서 손해를 본다.
+
+### 4.2. Checking RELRO
+이제 훨씬 간결한 방법을 써보자. checksec.sh를 사용하는 것이다. checksec.sh는 github에서 clone시켜 사용할 수도 있지만, pwntools를 설치하면 딸려오는 듯 하다. ```checksec binary```로 보호 기법을 확인할 수 있다.
+![실행 결과. binary에 걸려있는 보안 기법들을 확인할 수 있다.](/blog/assets/2019-09-26-#1-Memory-Protection-Techniques/RELRO#1.png)
+
+checksec을 통해 binary 공략을 위한 방향성을 잡는 것이 좋고, RELRO가 적용되어있더라도 vmmap 등을 통해 해커가 사용할 수 있는 메모리 영역을 잘 관찰하는 것이 좋다.
+
+## 5: PIE - Randomized (Almost) Everything!
+일반적인 통념 하에서는 코드가 저장된 .text 섹션의 주소는 고정되어 있다. 이 발상을 통해 ROP를 위한 Gadget을 .text에서 찾는 것이 일반적이다. 하지만 PIE (Position Independent Execution)는 다르다. PIE가 걸린 바이너리는 .text 섹션마저 랜덤화하고, 각 명령어들을 offset으로 계산하여 base와의 합을 통해 메모리 주소에 배치시킨다. binary를 리버싱했을 때, .text 섹션의 주소 값이 비정상적으로 작거나 디버깅 시에 코드 주소의 값이 통상적이지 않거나 계속 변한다면 이 기법을 의심해보자.
+
+PIE가 걸린 binary를 분석할 때는, 디버깅 시의 값을 통해 리버싱 프로그램에 base address를 설정해주는 것이 이롭다.
+
+## 6: 글을 마치며
+보안 기법이 중요한 이유는 보안 기법을 통해 바이너리를 공략할 수 있는 방법을 어느 정도 제시해주기 때문이다. 경험을 쌓아가며 이 기법이 왜 등장했으며, 어떻게 공략하면 좋을지를 잘 생각해보며 Exploit을 위한 계획을 잘 세워보자.
 
 
 이미지 출처
